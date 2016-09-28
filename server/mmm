@@ -1,0 +1,18 @@
+all: myapp
+
+CC = g++
+
+INCLUDE = -I./ -I/usr/local/include/websocketpp -I/usr/local/include/boost/
+
+LIBRARY= -L/usr/local/lib -lboost_system -lboost_chrono -lpthread
+
+CFLAGS = -g -std=c++11
+
+myapp: main.o 
+	$(CC) -o myapp main.o $(LIBRARY)
+
+.SUFFIXES: .cpp
+.cpp.o:
+	$(CC) $(CFLAGS) $(INCLUDE) -c -o $@ $<
+clean:
+	-rm -f main.o  myapp 

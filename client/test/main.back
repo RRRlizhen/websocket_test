@@ -1,0 +1,221 @@
+//
+// Created by lizhen on 16-9-9.
+//
+#include <iostream>
+#include <websocketpp/config/asio_no_tls_client.hpp>
+#include <websocketpp/client.hpp>
+#include <log4cpp/Category.hh>
+#include <log4cpp/PropertyConfigurator.hh>
+#include <unistd.h>
+#include <vector>
+#include <string>
+
+typedef websocketpp::client<websocketpp::config::asio_client> client;
+
+using websocketpp::lib::placeholders::_1;
+using websocketpp::lib::placeholders::_2;
+using websocketpp::lib::bind;
+
+//pull out the type of message sent by our config
+typedef websocketpp::config::asio_client::message_type::ptr message_ptr;
+
+// This message handler will be invoked once for each incoming message. It
+// prints the message and then sends a copy of the message back to the server.
+
+class CClient {
+public:
+    CClient(const std::string &uri);
+    CClient(){}
+    void setUri(const std::string &uri);
+
+    ~CClient(void);
+
+    void init();
+    bool connect();
+    bool disconnct();
+    void run();
+    void on_open(websocketpp::connection_hdl hdl);
+    void on_close(websocketpp::connection_hdl hdl);
+    void on_message(websocketpp::connection_hdl hdl,message_ptr msg);
+    int csend(std::string msg);
+
+public:
+    client c;
+    websocketpp::connection_hdl hdl;
+    static log4cpp::Category &log;
+private:
+    std::string uri = "ws://localhost:9002";
+    CClient& operator= (const CClient& c);
+};
+
+log4cpp::Category &CClient::log = log4cpp::Category::getInstance(std::string("sample"));
+
+CClient::CClient(const std::string &uri) {
+    this->uri = uri;
+}
+
+void CClient::on_open(websocketpp::connection_hdl hdl) {
+    std::cout<<"client set the on_open"<<std::endl;
+    this->hdl = hdl;
+    std::string hw = "hello";
+    csend(hw);
+}
+void CClient::on_close(websocketpp::connection_hdl hdl) {
+    std::cout<<"client has been closed"<<std::endl;
+}
+
+void CClient::on_message(websocketpp::connection_hdl hdl, message_ptr msg) {
+    std::cout<<"begin send a message"<<std::endl;
+    websocketpp::lib::error_code ec;
+    c.send(hdl, msg->get_payload(), msg->get_opcode(), ec);
+    if (ec) {
+        std::cout << "Echo failed because: " << ec.message() << std::endl;
+    }
+
+    std::cout << "on_message called with hdl: " << hdl.lock().get()
+              << " and message: " << msg->get_payload()
+              << std::endl;
+}
+
+int CClient::csend(const std::string data) {
+    try{
+        c.send(hdl,data,websocketpp::frame::opcode::text);
+    }catch (const websocketpp::lib::error_code &e){
+        std::cout<<"echo failed because : "<<e
+                                           << "("<<e.message()<<")"<<std::endl;
+    }
+}
+
+CClient::~CClient(void) {
+    if(disconnct()){
+        std::cout<<"disconnect done"<<std::endl;
+    }else{
+        std::cout<<"disconnect err"<<std::endl;
+    }
+}
+
+void CClient::setUri(const std::string &uri) {
+    this->uri = uri;
+}
+
+void CClient::init() {
+    try {
+        // Set logging to be pretty verbose (everything except message payloads)
+        c.set_access_channels(websocketpp::log::alevel::all);
+        c.clear_access_channels(websocketpp::log::alevel::frame_payload);
+
+        // Initialize ASIO
+        c.init_asio();
+
+        // Register our message handler
+        c.set_open_handler(bind(&CClient::on_open,this,::_1));
+        c.set_close_handler(bind(&CClient::on_close,this,::_1));
+        c.set_message_handler(bind(&CClient::on_message,this,::_1,::_2));
+
+    } catch (websocketpp::exception const &e) {
+        std::cout << e.what() << std::endl;
+    }
+    log.info("cclient::init!");
+}
+
+bool CClient::connect() {
+    try {
+        websocketpp::lib::error_code ec;
+        client::connection_ptr con = c.get_connection(uri, ec);
+        if (ec) {
+            std::cout << "could not create connection because: " << ec.message() << std::endl;
+            return false;
+        }
+
+        // Note that connect here only requests a connection. No network messages are
+        // exchanged until the event loop starts running in the next line.
+        c.connect(con);
+        return true;
+    } catch (websocketpp::exception const &e) {
+        std::cout << e.what() << std::endl;
+    }
+    log.info("connect!");
+}
+
+bool CClient::disconnct() {
+    try {
+        c.stop();
+        return true;
+    } catch (websocketpp::exception const &e) {
+        std::cout << e.what() << std::endl;
+    }
+    log.info("disconnect!");
+}
+
+void CClient::run() {
+    try {
+        // Start the ASIO io_service run loop
+        // this will cause a single connection to be made to the server. c.run()
+        // will exit when this connection is closed.
+        log.info("run!");
+        c.run();
+    } catch (websocketpp::exception const &e) {
+        std::cout << e.what() << std::endl;
+    }
+}
+
+
+void *test_connecting(void *cli){
+    CClient *client = static_cast<CClient*>(cli);
+    client->init();
+    if(!client->connect()){
+        std::cout<<"connect error"<<std::endl;
+    }
+    client->run();
+    return nullptr;
+}
+
+bool init_log(){
+    try{
+        log4cpp::PropertyConfigurator::configure("./log4cpp.properties");
+        return true;
+    }catch (log4cpp::ConfigureFailure &f){
+        std::cout<<"Configure Problem"<<f.what()<<std::endl;
+        return false;
+    }
+}
+
+
+int main(int argc, char **argv) {
+    std::vector<std::string> dy = {"...","/..",".|.","..\\",".|.","/.."};
+    if(init_log()){
+        std::cout<<"init_log"<<std::endl;
+    }
+
+    std::string uri = "ws://localhost:9002";
+    if (argc == 2) {
+        uri = argv[1];
+    }
+
+    CClient *client = new CClient();
+    client->init();
+    if(!client->connect()){
+        std::cout<<"connet error"<<std::endl;
+    }
+    std::string hw = "hello";
+    client->run();
+/*
+    std::vector<pthread_t> vecp(100000);
+    for(int i = 0;true;i++){
+        CClient *client = new CClient();
+        pthread_create(&vecp[i], nullptr,test_connecting,client);
+        sleep(0.1);
+        std::string whichClient = std::to_string(i);
+
+        std::string out = dy[i%6]+"  ---CClient"+whichClient+" ] connected";
+        CClient::log.info(out);
+    }
+
+    for(int i = 0;i<100000;i++){
+        pthread_join(vecp[i], nullptr);
+    }
+
+    CClient::log.info("done!");
+*/
+    return 0;
+}

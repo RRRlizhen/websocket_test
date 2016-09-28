@@ -1,0 +1,5 @@
+include_directories(../depends/include/curl)
+include_directories(../depends/include/protobuf)
+include_directories(../depends/include/websocketpp)
+include_directories(../depends/include/zookeeper)
+include_directories(.)
