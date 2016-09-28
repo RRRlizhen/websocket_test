@@ -1,6 +1,0 @@
-问题：测试signal server同时连接的客户端最大数量(采用同步方式)
-结果： signal server端能接受1万以上的连接数量访问，没有问题； 之后client会出现connection error;
-方法： 1，单机打开1000（进程）*1024（线程）个client向10.1.6.209机器中的8080端口发起连接，
-2，连接成功后，发送createRomm消息 格式为： sendMsg = {"alias":"xxx","msgid":"200","roomid":"123","userid":"456"};
-3，然后收到相应rsp消息, 格式为：rsp = {"msgid":"200","result":[0,"Ok"]}
-4，client会比对rsp，与预期一致则认为连接成功；
